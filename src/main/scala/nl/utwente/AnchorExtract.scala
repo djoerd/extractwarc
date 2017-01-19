@@ -83,7 +83,8 @@ object AnchorExtract {
     )
     val html = warcf.map{w => (w._2.header.warcTargetUriStr, getContent(w._2))}.cache() // TODO: also contains WARC header
     val anchors = html.flatMap{w => scrapeAnchors(w._2)}
-    val output  = anchors.map{w => cleanAnchors(w)} 
+    val texts  = anchors.map{w => (cleanAnchors(w), 1)}
+    val output = texts.reduceByKey((a, b) => a + b).sortBy(c => c._2, false)
     output.saveAsTextFile(outDir)
   }
 }
