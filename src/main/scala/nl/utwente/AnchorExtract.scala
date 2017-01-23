@@ -41,8 +41,9 @@ object AnchorExtract {
       }
       val elements = rootNode.getElementsByName("a", true)
       for (elem <- elements) {
-        val rel = elem.getAttributeByName("rel")
-        if (rel == null || !rel.equalsIgnoreCase("nofollow")) {
+        val rel  = elem.getAttributeByName("rel")  // no nofollow
+        val href = elem.getAttributeByName("href") // must be a link
+        if (href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
           val text = StringEscapeUtils.unescapeHtml(elem.getText.toString)
           val texts = text.split(": ")
           anchors ++= texts
