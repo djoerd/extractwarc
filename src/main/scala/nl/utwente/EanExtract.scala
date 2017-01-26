@@ -18,16 +18,20 @@ import com.mydatafactory.ean.ExtractEan
 object EanExtract {
 
   def getContent(record: WarcRecord): String = {
-    val cLen = record.header.contentLength.toInt
-    val cStream = record.getPayload.getInputStream()
     val content = new ByteArrayOutputStream()
-    val buf = new Array[Byte](cLen)
-    var nRead = cStream.read(buf)
-    while (nRead != -1) {
-      content.write(buf, 0, nRead)
-      nRead = cStream.read(buf)
+    try {
+      val cLen = record.header.contentLength.toInt
+      val cStream = record.getPayload.getInputStream()
+      val buf = new Array[Byte](cLen)
+      var nRead = cStream.read(buf)
+      while (nRead != -1) {
+        content.write(buf, 0, nRead)
+        nRead = cStream.read(buf)
+      }
+      cStream.close()
+    } catch {
+      case e: Exception => println("WARN: " + e);
     }
-    cStream.close()
     content.toString("UTF-8")
   }
 
@@ -55,7 +59,7 @@ object EanExtract {
     )
     val html  = warcf.map(w => (w._2.header.warcTargetUriStr, getContent(w._2))).cache() // TODO: also contains WARC header
     val found = html.map(w => (w._1, ExtractEan.findEan(w._2))) // , cleanPage(w._2)))
-    val pages = found.filter(w => w._2.size > 0).map(w => w.productIterator.mkString("\t"))
+    val pages = found.filter(w => w._1 != null && w._2.size > 0).map(w => w.productIterator.mkString("\t"))
     pages.saveAsTextFile(outDir, classOf[GzipCodec])
   }
 }

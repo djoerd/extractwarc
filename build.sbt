@@ -4,7 +4,7 @@ scalaVersion	:= "2.10.5"
 
 packAutoSettings
 
-val sparkV	= "1.6.1"
+val sparkV	= "1.6.3"
 val hadoopV	= "2.7.1"
 val jwatV	= "1.0.0"
 
