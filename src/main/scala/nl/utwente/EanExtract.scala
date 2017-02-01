@@ -58,7 +58,7 @@ object EanExtract {
       classOf[WarcRecord]        // OutputValue
     )
     val html  = warcf.map(w => (w._2.header.warcTargetUriStr, getContent(w._2))).cache() // TODO: also contains WARC header
-    val found = html.map(w => (w._1, ExtractEan.findEan(w._2))) // , cleanPage(w._2)))
+    val found = html.map(w => (w._1, ExtractEan.findEan(w._2), cleanPage(w._2)))
     val pages = found.filter(w => w._1 != null && w._2.size > 0).map(w => w.productIterator.mkString("\t"))
     pages.saveAsTextFile(outDir, classOf[GzipCodec])
   }
