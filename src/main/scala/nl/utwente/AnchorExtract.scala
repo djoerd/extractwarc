@@ -16,16 +16,20 @@ import nl.surfsara.warcutils.WarcInputFormat
 object AnchorExtract {
 
   def getContent(record: WarcRecord): String = {
-    val cLen = record.header.contentLength.toInt
-    val cStream = record.getPayload.getInputStream()
     val content = new ByteArrayOutputStream();
-    val buf = new Array[Byte](cLen)
-    var nRead = cStream.read(buf)
-    while (nRead != -1) {
-      content.write(buf, 0, nRead)
-      nRead = cStream.read(buf)
+    try {
+      val cLen = record.header.contentLength.toInt
+      val cStream = record.getPayload.getInputStream()
+      val buf = new Array[Byte](cLen)
+      var nRead = cStream.read(buf)
+      while (nRead != -1) {
+        content.write(buf, 0, nRead)
+        nRead = cStream.read(buf)
+      }
+      cStream.close()
+    } catch {
+      case e: Exception => println("WARN: " + e);
     }
-    cStream.close()
     content.toString("UTF-8");
   }
 
@@ -33,22 +37,26 @@ object AnchorExtract {
   def scrapeAnchors(html: String): List[String] = {
     var anchors = new scala.collection.mutable.ListBuffer[String]
     val cleaner = new HtmlCleaner()
-    val rootNode = cleaner.clean(html)
-    if (rootNode != null) {
-      val titleNode = rootNode.findElementByName("title", true)
-      if (titleNode != null) {
-        anchors += titleNode.getText.toString
-      }
-      val elements = rootNode.getElementsByName("a", true)
-      for (elem <- elements) {
-        val rel  = elem.getAttributeByName("rel")  // no nofollow
-        val href = elem.getAttributeByName("href") // must be a link
-        if (href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
-          val text = StringEscapeUtils.unescapeHtml(elem.getText.toString)
-          val texts = text.split(": ")
-          anchors ++= texts
+    try {
+      val rootNode = cleaner.clean(html)
+      if (rootNode != null) {
+        val titleNode = rootNode.findElementByName("title", true)
+        if (titleNode != null) {
+          anchors += titleNode.getText.toString
+        }
+        val elements = rootNode.getElementsByName("a", true)
+        for (elem <- elements) {
+          val rel  = elem.getAttributeByName("rel")  // no nofollow
+          val href = elem.getAttributeByName("href") // must be a link
+          if (href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
+            val text = StringEscapeUtils.unescapeHtml(elem.getText.toString)
+            val texts = text.split(": ")
+            anchors ++= texts
+          }
         }
       }
+    } catch {
+      case e: Exception => println("WARN: " + e);
     }
     return anchors.toList
   }
@@ -85,7 +93,8 @@ object AnchorExtract {
     val html = warcf.map{w => (w._2.header.warcTargetUriStr, getContent(w._2))}.cache() // TODO: also contains WARC header
     val anchors = html.flatMap{w => scrapeAnchors(w._2)}
     val texts  = anchors.map{w => (cleanAnchors(w), 1)}
-    val output = texts.reduceByKey((a, b) => a + b).sortBy(c => c._2, false)
+    val best = texts.reduceByKey((a, b) => a + b).filter(w => w._2 > 2)
+    val output =  best.sortBy(c => c._2, false).map(w => w._2 + "\t" + w._1)
     output.saveAsTextFile(outDir)
   }
 }
