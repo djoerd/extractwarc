@@ -9,9 +9,10 @@ import org.apache.hadoop.io.LongWritable
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.lang.StringEscapeUtils
 
-import org.htmlcleaner.HtmlCleaner
+import org.jsoup.Jsoup
 import org.jwat.warc.WarcRecord
 import nl.surfsara.warcutils.WarcInputFormat
+import scala.collection.JavaConversions._
 
 object AnchorExtract {
 
@@ -36,20 +37,19 @@ object AnchorExtract {
 
   def scrapeAnchors(html: String): List[String] = {
     var anchors = new scala.collection.mutable.ListBuffer[String]
-    val cleaner = new HtmlCleaner()
     try {
-      val rootNode = cleaner.clean(html)
+      val rootNode = Jsoup.parse(html)
       if (rootNode != null) {
-        val titleNode = rootNode.findElementByName("title", true)
-        if (titleNode != null) {
-          anchors += titleNode.getText.toString
+        val titleNode = rootNode.select("title")
+        if (titleNode != null && titleNode.hasText()) {
+          anchors += titleNode.text()
         }
-        val elements = rootNode.getElementsByName("a", true)
+        val elements = rootNode.select("a")
         for (elem <- elements) {
-          val rel  = elem.getAttributeByName("rel")  // no nofollow
-          val href = elem.getAttributeByName("href") // must be a link
-          if (href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
-            val text = StringEscapeUtils.unescapeHtml(elem.getText.toString)
+          val rel  = elem.attr("rel")  // no nofollow
+          val href = elem.attr("href") // must be a link
+          if (elem.hasText() && href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
+            val text = StringEscapeUtils.unescapeHtml(elem.text)
             val texts = text.split(": ")
             anchors ++= texts
           }
@@ -93,7 +93,7 @@ object AnchorExtract {
     val html = warcf.map{w => (w._2.header.warcTargetUriStr, getContent(w._2))}.cache() // TODO: also contains WARC header
     val anchors = html.flatMap{w => scrapeAnchors(w._2)}
     val texts  = anchors.map{w => (cleanAnchors(w), 1)}
-    val best = texts.reduceByKey((a, b) => a + b).filter(w => w._2 > 2)
+    val best = texts.reduceByKey((a, b) => a + b).filter(w => w._2 > 1)
     val output =  best.sortBy(c => c._2, false).map(w => w._2 + "\t" + w._1)
     output.saveAsTextFile(outDir)
   }
