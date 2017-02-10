@@ -14,7 +14,7 @@ import org.jwat.warc.WarcRecord
 import nl.surfsara.warcutils.WarcInputFormat
 import scala.collection.JavaConversions._
 
-object AnchorExtract {
+object AnchorExtractNoSpam {
 
   def getContent(record: WarcRecord): String = {
     var output = ""
@@ -78,13 +78,14 @@ object AnchorExtract {
 
   def main(args: Array[String]) {
     val appName = this.getClass.getName
-    if (args.length != 2) {
-      throw new IllegalArgumentException(s"Usage: $appName <in> <out>");
+    if (args.length != 3) {
+      throw new IllegalArgumentException(s"Usage: $appName <in> <no-spam-file> <out>");
     }
-    val inDir   = args(0)
-    val outDir  = args(1)
-    val conf    = new SparkConf().setAppName(s"$appName $inDir $outDir")
-    val sc      = new SparkContext(conf)
+    val inDir       = args(0)
+    val noSpamFile  = args(1)
+    val outDir      = args(2)
+    val conf        = new SparkConf().setAppName(appName)
+    val sc          = new SparkContext(conf)
 
     val warcf = sc.newAPIHadoopFile(
       inDir,
@@ -93,11 +94,12 @@ object AnchorExtract {
       classOf[WarcRecord]        // OutputValue
     )
 
-    val output = warcf.map(w => (getContent(w._2), w._2.header.warcTargetUriStr)) // TODO: also contains WARC header
-        .flatMap(w => scrapeAnchors(w._1, w._2))
-        .map{w => (cleanAnchors(w), 1)}
-        .reduceByKey((a, b) => a + b).filter(w => w._2 > 2)
-        .sortBy(c => c._2, false).map(w => w._2 + "\t" + w._1)
-    output.saveAsTextFile(outDir)
+    val nospam  = sc.textFile(noSpamFile).map(line => (line, 1))
+    val warc    = warcf.map(w => (w._2.getHeader("WARC-TREC-ID"), getContent(w._2))).filter(w => w._1 != null).map(w => (w._1.value, w._2))
+    val anchors = warc.join(nospam).flatMap(w => scrapeAnchors(w._2._1, "http://ut.nl"))
+      .map{w => (cleanAnchors(w), 1)}
+      .reduceByKey((a, b) => a + b).filter(w => w._2 > 2)
+      .sortBy(c => c._2, false).map(w => w._2 + "\t" + w._1)
+    anchors.saveAsTextFile(outDir)
   }
 }
