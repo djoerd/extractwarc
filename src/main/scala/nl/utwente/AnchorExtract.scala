@@ -43,17 +43,19 @@ object AnchorExtract {
     try {
       val rootNode = Jsoup.parse(html, baseUri)
       if (rootNode != null) {
-        //val title = rootNode.title()
-        //if (title != null && title != "") {
-        //  anchors += title
-        //}
+        val title = rootNode.title()
+        if (title != null && title != "") {
+          val text = StringEscapeUtils.unescapeHtml(title)
+          val texts = text.split("[:;\\|\\-\\?\\.] ")
+          anchors ++= texts
+        }
         val elements = rootNode.select("a")
         for (elem <- elements) {
-          val rel  = elem.attr("rel")  // no nofollow
-          val href = elem.attr("href")
-          if (elem.hasText() && href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
+          //val rel  = elem.attr("rel")  // no nofollow
+          //val href = elem.attr("href")
+          if (elem.hasText()) { //  && href != null && (rel == null || !rel.equalsIgnoreCase("nofollow"))) {
             val text = StringEscapeUtils.unescapeHtml(elem.text())
-            val texts = text.split(": ")
+            val texts = text.split("[:;\\|\\-\\?\\.] ")
             anchors ++= texts
           }
         }
